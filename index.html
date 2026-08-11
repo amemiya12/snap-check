@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>SNAP CHECK — 瞬間判定</title>
+<title>SNAP CHECK — 瞬間判定タイムアタック計算ゲーム</title>
+<meta name="description" content="SNAP CHECKは、表示される計算式に対して3択の中から正しい答えを制限時間内に瞬時にタップし、連鎖ボーナスで高スコアを狙う暗算タイムアタックゲームです。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -22,20 +23,32 @@
   *{box-sizing:border-box;}
   html,body{
     margin:0; padding:0; height:100%;
-    overflow:hidden;
+    overflow-x:hidden; overflow-y:auto;
     overscroll-behavior:none;
     background:
       repeating-linear-gradient(0deg, transparent, transparent 27px, var(--line) 27px, var(--line) 28px),
       var(--paper);
     font-family:'Zen Kaku Gothic New', sans-serif;
     color:var(--ink);
-    display:flex; align-items:center; justify-content:center;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     touch-action: manipulation;
     user-select:none;
   }
+  .howto{
+    width:100%; max-width:420px;
+    padding:22px 20px 36px;
+    font-size:12.5px; line-height:1.9; color:var(--ink-soft);
+  }
+  .howto h2{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px; font-weight:800; letter-spacing:2px;
+    color:var(--ink); margin:0 0 10px;
+    border-bottom:1.5px solid var(--ink); padding-bottom:8px;
+  }
+  .howto p{ margin:0; }
   .stage{
     width:100%; max-width:420px;
     height: calc(var(--vh, 1vh) * 100);
@@ -314,6 +327,13 @@
     <footer>LOCAL BEST · ON-DEVICE ONLY</footer>
   </div>
 </div>
+
+<section class="howto">
+  <h2>遊び方</h2>
+  <p>
+    SNAP CHECKは、表示された計算式を見て3択の中から正しい答えを制限時間内に瞬時にタップする「瞬間判定タイムアタック」です。正解が続くと残り時間が少しずつ延びて連鎖ボーナスが発生し、誤答すると残り時間が減って連鎖はリセットされます。ときどき現れる「CHALLENGE」表示の問題は難易度が上がる代わりに、正解すると大きなボーナス得点が手に入ります。制限時間が0になるまでにどれだけスコアを積み上げられるか、自分の瞬発的な判断力を試してみましょう。
+  </p>
+</section>
 
 <script>
   // --- mobile stability: lock the viewport height and block accidental zoom ---
