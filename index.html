@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>SNAP CHECK — 瞬間判定</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EEEBE3;
+    --paper-2:#E4E0D5;
+    --ink:#1C1C1C;
+    --ink-soft:#6B675E;
+    --blue:#2454CC;
+    --blue-deep:#173A99;
+    --red:#C4362B;
+    --green:#2F8F5B;
+    --amber:#C9781A;
+    --line: rgba(28,28,28,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    overflow:hidden;
+    overscroll-behavior:none;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 27px, var(--line) 27px, var(--line) 28px),
+      var(--paper);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+    user-select:none;
+  }
+  .stage{
+    width:100%; max-width:420px;
+    height: calc(var(--vh, 1vh) * 100);
+    padding:20px 18px 28px;
+    display:flex; flex-direction:column;
+    position:relative;
+    touch-action: manipulation;
+  }
+  .frame{
+    border:1.5px solid var(--ink);
+    background: var(--paper);
+    box-shadow: 6px 6px 0 rgba(28,28,28,0.9);
+    padding:18px 18px 22px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    overflow:hidden;
+  }
+  .corner{
+    position:absolute; width:9px; height:9px;
+    border:1.5px solid var(--ink);
+  }
+  .corner.tl{ top:-1.5px; left:-1.5px; border-right:none; border-bottom:none;}
+  .corner.tr{ top:-1.5px; right:-1.5px; border-left:none; border-bottom:none;}
+  .corner.bl{ bottom:-1.5px; left:-1.5px; border-right:none; border-top:none;}
+  .corner.br{ bottom:-1.5px; right:-1.5px; border-left:none; border-top:none;}
+
+  header{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding-bottom:12px; border-bottom:1.5px solid var(--ink);
+    margin-bottom:14px;
+  }
+  .title{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800; font-size:15px; letter-spacing:2px;
+  }
+  .subtitle{
+    font-size:10.5px; color:var(--ink-soft); letter-spacing:1px; margin-top:2px;
+  }
+  .best-tag{
+    text-align:right; font-family:'JetBrains Mono', monospace;
+  }
+  .best-tag .label{ font-size:9px; color:var(--ink-soft); letter-spacing:1px;}
+  .best-tag .value{ font-size:18px; font-weight:800; }
+
+  /* ---- screens ---- */
+  .screen{ display:none; flex:1; flex-direction:column; }
+  .screen.active{ display:flex; }
+
+  /* START */
+  #start{ align-items:center; justify-content:center; text-align:center; gap:22px; }
+  .gauge-static{ width:150px; height:150px; }
+  .rule{
+    font-size:12.5px; line-height:1.9; color:var(--ink-soft);
+    max-width:280px;
+  }
+  .rule b{ color:var(--ink); }
+  .go-btn{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800; font-size:14px; letter-spacing:2px;
+    background:var(--ink); color:var(--paper);
+    border:none; padding:16px 40px;
+    cursor:pointer;
+    box-shadow:4px 4px 0 var(--blue);
+    transition: transform .08s ease;
+    touch-action: manipulation;
+  }
+  .go-btn:active{ transform: translate(3px,3px); box-shadow:1px 1px 0 var(--blue); }
+
+  /* PLAY */
+  #play{ gap:16px; }
+  .hud{ display:flex; align-items:center; justify-content:space-between; }
+  .dial-wrap{ position:relative; width:64px; height:64px; }
+  .score-block{ font-family:'JetBrains Mono', monospace; text-align:right; }
+  .score-block .s-label{ font-size:9px; color:var(--ink-soft); letter-spacing:1px; }
+  .score-block .s-value{ font-size:26px; font-weight:800; line-height:1; }
+  .streak{ font-size:10.5px; color:var(--blue); font-weight:600; margin-top:2px; }
+
+  .bonus-toast{
+    position:absolute; top:78px; left:0; right:0;
+    text-align:center; pointer-events:none;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800; font-size:15px; letter-spacing:1px;
+    color:var(--blue);
+    opacity:0; z-index:5;
+  }
+  .bonus-toast.show{
+    animation: bonusPop 1.1s ease forwards;
+  }
+  @keyframes bonusPop{
+    0%   { opacity:0; transform: translateY(6px) scale(0.9); }
+    18%  { opacity:1; transform: translateY(-2px) scale(1.08); }
+    32%  { opacity:1; transform: translateY(-2px) scale(1); }
+    100% { opacity:0; transform: translateY(-18px) scale(1); }
+  }
+
+  .eq-zone{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .challenge-tag{
+    font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800;
+    letter-spacing:3px; color:var(--amber);
+    border:1.5px solid var(--amber); padding:2px 10px;
+    margin-bottom:6px; opacity:0; height:0; overflow:hidden;
+  }
+  .challenge-tag.on{
+    opacity:1; height:auto; animation: challengePulse 1s ease-in-out infinite;
+  }
+  @keyframes challengePulse{
+    0%,100%{ opacity:1; } 50%{ opacity:0.45; }
+  }
+  .eq-card.wildcard{ color:var(--amber); }
+  .eq-card{
+    font-family:'JetBrains Mono', monospace;
+    font-size: clamp(26px, 9vw, 44px); font-weight:800;
+    letter-spacing:1px;
+    padding:10px 6px;
+    white-space: nowrap;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .eq-card.flash-ok{ color:var(--green); }
+  .eq-card.flash-ng{ color:var(--red); }
+  .eq-card.leave-right{ transform: translateX(120px); opacity:0; }
+  .eq-card.leave-left{ transform: translateX(-120px); opacity:0; }
+
+  .choices{ display:flex; gap:8px; }
+  .choice-btn{
+    flex:1; padding:18px 4px; text-align:center;
+    font-family:'JetBrains Mono', monospace; font-weight:800; font-size:19px;
+    letter-spacing:0.5px; cursor:pointer;
+    border:1.5px solid var(--ink);
+    background:var(--paper);
+    transition: background .08s ease, color .08s ease, transform .05s ease;
+    touch-action: manipulation;
+  }
+  .choice-btn:active{ transform: scale(0.96); }
+  .choice-btn.pick-correct{ background:var(--green); color:var(--paper); border-color:var(--green); }
+  .choice-btn.pick-wrong{ background:var(--red); color:var(--paper); border-color:var(--red); }
+  .choice-btn.reveal-correct{ background:var(--green); color:var(--paper); border-color:var(--green); }
+  .choice-btn .k{ display:block; font-size:8.5px; color:var(--ink-soft); margin-top:4px; letter-spacing:0.5px; font-weight:500;}
+  .choice-btn.pick-correct .k, .choice-btn.pick-wrong .k, .choice-btn.reveal-correct .k{ color:var(--paper); opacity:0.85; }
+
+  /* END */
+  #end{ align-items:center; justify-content:center; text-align:center; gap:10px; }
+  .end-label{ font-size:11px; letter-spacing:2px; color:var(--ink-soft); font-family:'JetBrains Mono', monospace;}
+  .end-score{ font-family:'JetBrains Mono', monospace; font-size:56px; font-weight:800; line-height:1;}
+  .end-best{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .end-best b{ color:var(--blue); font-weight:700; }
+  .new-record{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; letter-spacing:2px; color:var(--paper);
+    background:var(--blue); padding:4px 12px; margin-top:6px;
+  }
+  .retry-btn{
+    margin-top:18px;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800; font-size:13px; letter-spacing:2px;
+    background:transparent; color:var(--ink);
+    border:1.5px solid var(--ink); padding:14px 34px;
+    cursor:pointer;
+    touch-action: manipulation;
+  }
+  .retry-btn:active{ background:var(--ink); color:var(--paper); }
+
+  .diag-block{
+    margin-top:14px; width:100%; max-width:280px;
+    border:1.5px solid var(--blue);
+    padding:12px 14px;
+    background: rgba(36,84,204,0.05);
+  }
+  .diag-label{
+    font-family:'JetBrains Mono', monospace; font-size:9px;
+    letter-spacing:2px; color:var(--blue); text-align:center;
+  }
+  .diag-type{
+    font-size:19px; font-weight:900; text-align:center;
+    margin-top:4px; letter-spacing:1px;
+  }
+  .diag-desc{
+    font-size:11px; color:var(--ink-soft); text-align:center;
+    margin-top:6px; line-height:1.6;
+  }
+  .diag-stats{
+    font-family:'JetBrains Mono', monospace; font-size:9.5px;
+    color:var(--ink-soft); text-align:center; margin-top:8px;
+    letter-spacing:0.5px; border-top:1px solid var(--line); padding-top:8px;
+  }
+
+  footer{
+    margin-top:12px; text-align:center;
+    font-size:9px; color:var(--ink-soft); letter-spacing:1px;
+    font-family:'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="frame">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+
+    <header>
+      <div>
+        <div class="title">SNAP CHECK</div>
+        <div class="subtitle">瞬間判定タイムアタック</div>
+      </div>
+      <div class="best-tag">
+        <div class="label">BEST</div>
+        <div class="value" id="bestDisplay">---</div>
+      </div>
+    </header>
+
+    <!-- START -->
+    <div class="screen active" id="start">
+      <svg class="gauge-static" viewBox="0 0 150 150">
+        <circle cx="75" cy="75" r="62" fill="none" stroke="#1C1C1C" stroke-width="1.5"/>
+        <circle cx="75" cy="75" r="52" fill="none" stroke="#1C1C1C" stroke-width="1"/>
+        <g id="ticks"></g>
+        <text x="75" y="70" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="800" fill="#1C1C1C">45</text>
+        <text x="75" y="88" text-anchor="middle" font-family="JetBrains Mono" font-size="9" letter-spacing="1" fill="#6B675E">SECONDS</text>
+      </svg>
+      <div class="rule">
+        数式が表示されます。<b>3つの数字から正しい答えを瞬時にタップ</b>。<br>
+        正解で時間が少し延びて連鎖ボーナス、誤答で時間が減って連鎖が切れます。
+      </div>
+      <button class="go-btn" onclick="startGame()">START</button>
+    </div>
+
+    <!-- PLAY -->
+    <div class="screen" id="play">
+      <div class="hud">
+        <div class="dial-wrap">
+          <svg viewBox="0 0 64 64" width="64" height="64">
+            <circle cx="32" cy="32" r="27" fill="none" stroke="var(--line)" stroke-width="4"/>
+            <circle id="timeRing" cx="32" cy="32" r="27" fill="none" stroke="var(--blue)" stroke-width="4"
+              stroke-dasharray="169.6" stroke-dashoffset="0" transform="rotate(-90 32 32)"/>
+          </svg>
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono'; font-weight:700; font-size:15px;" id="timeText">45</div>
+        </div>
+        <div class="score-block">
+          <div class="s-label">SCORE</div>
+          <div class="s-value" id="scoreDisplay">0</div>
+          <div class="streak" id="streakDisplay">連鎖 0</div>
+        </div>
+      </div>
+
+      <div class="bonus-toast" id="bonusToast"></div>
+
+      <div class="eq-zone">
+        <div class="challenge-tag" id="challengeTag">CHALLENGE</div>
+        <div class="eq-card" id="eqCard">--</div>
+      </div>
+
+      <div class="choices" id="choicesRow"></div>
+    </div>
+
+    <!-- END -->
+    <div class="screen" id="end">
+      <div class="end-label">TIME UP</div>
+      <div class="end-score" id="finalScore">0</div>
+      <div class="end-best">自己ベスト <b id="finalBest">0</b></div>
+      <div class="new-record" id="newRecordTag" style="display:none;">NEW RECORD</div>
+
+      <div class="diag-block">
+        <div class="diag-label">JUDGMENT TYPE</div>
+        <div class="diag-type" id="diagType">-</div>
+        <div class="diag-desc" id="diagDesc"></div>
+        <div class="diag-stats" id="diagStats"></div>
+      </div>
+
+      <button class="retry-btn" onclick="resetToStart()">RETRY</button>
+    </div>
+
+    <footer>LOCAL BEST · ON-DEVICE ONLY</footer>
+  </div>
+</div>
+
+<script>
+  // --- mobile stability: lock the viewport height and block accidental zoom ---
+  // (1) --vh is set once from window.innerHeight and only re-measured on real
+  //     orientation changes, NOT on every resize — mobile browsers fire resize
+  //     events when the address bar shows/hides while scrolling, which otherwise
+  //     makes the whole layout visibly grow/shrink mid-game.
+  function lockViewportHeight(){
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+  }
+  lockViewportHeight();
+  window.addEventListener('orientationchange', () => setTimeout(lockViewportHeight, 250));
+
+  // (2) block the double-tap-to-zoom gesture outright. The viewport meta tag
+  //     (user-scalable=no) doesn't reliably stop this on every mobile browser,
+  //     especially during fast repeated taps.
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if(now - lastTouchEnd <= 350){ e.preventDefault(); }
+    lastTouchEnd = now;
+  }, { passive:false });
+
+  // (3) block pinch-zoom (two-finger gestures) outright
+  document.addEventListener('touchmove', (e) => {
+    if(e.touches.length > 1){ e.preventDefault(); }
+  }, { passive:false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+  const STORAGE_KEY = 'snapcheck:best';
+  let best = 0;
+  let score = 0;
+  let streak = 0;
+  let maxStreak = 0;
+  let timeLeft = 45;
+  let timerId = null;
+  let currentAnswer = null; // true = equation is correct, false = wrong
+  let accepting = false;
+  let questionStartAt = 0;
+  let reactionTimes = []; // seconds, correct answers only
+  let totalJudged = 0;
+  let correctCount = 0;
+  let lastTickSecond = null;
+  let questionIndex = 0;
+  let recentQuestions = []; // last few question texts, to avoid immediate repeats
+  let currentIsWildcard = false;
+
+  // ---- audio (synthesized, no external files) ----
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){ audioCtx.resume(); }
+  }
+  function beep(freq, duration, type, gainPeak){
+    if(!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(gainPeak, audioCtx.currentTime + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration + 0.02);
+  }
+  function sfxCorrect(streakVal){
+    // pitch rises slightly with streak, capped
+    const pitch = 660 + Math.min(streakVal, 12) * 22;
+    beep(pitch, 0.11, 'sine', 0.14);
+  }
+  function sfxWrong(){
+    beep(160, 0.16, 'square', 0.10);
+  }
+  function sfxTick(){
+    beep(1000, 0.045, 'sine', 0.05);
+  }
+  function sfxTimeUp(){
+    beep(90, 0.35, 'sawtooth', 0.10);
+  }
+  function sfxStreakBonus(){
+    // rising 3-note arpeggio, distinct from the normal correct beep
+    beep(660, 0.10, 'sine', 0.13);
+    setTimeout(()=>beep(880, 0.10, 'sine', 0.13), 70);
+    setTimeout(()=>beep(1100, 0.16, 'sine', 0.15), 140);
+  }
+
+  const els = {
+    start: document.getElementById('start'),
+    play: document.getElementById('play'),
+    end: document.getElementById('end'),
+    bestDisplay: document.getElementById('bestDisplay'),
+    scoreDisplay: document.getElementById('scoreDisplay'),
+    streakDisplay: document.getElementById('streakDisplay'),
+    bonusToast: document.getElementById('bonusToast'),
+    challengeTag: document.getElementById('challengeTag'),
+    eqCard: document.getElementById('eqCard'),
+    choicesRow: document.getElementById('choicesRow'),
+    timeRing: document.getElementById('timeRing'),
+    timeText: document.getElementById('timeText'),
+    finalScore: document.getElementById('finalScore'),
+    finalBest: document.getElementById('finalBest'),
+    newRecordTag: document.getElementById('newRecordTag'),
+  };
+
+  const RING_CIRC = 169.6; // 2*PI*27
+  const TIME_CAP = 60; // raised so streak bonuses actually matter past the base 45s
+
+  // draw static ticks on start gauge
+  (function drawTicks(){
+    const g = document.getElementById('ticks');
+    for(let i=0;i<12;i++){
+      const angle = (i/12) * Math.PI * 2 - Math.PI/2;
+      const x1 = 75 + 58*Math.cos(angle), y1 = 75 + 58*Math.sin(angle);
+      const x2 = 75 + 52*Math.cos(angle), y2 = 75 + 52*Math.sin(angle);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+      line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+      line.setAttribute('stroke','#1C1C1C'); line.setAttribute('stroke-width', i%3===0 ? '1.5':'0.75');
+      g.appendChild(line);
+    }
+  })();
+
+  async function loadBest(){
+    try{
+      const res = window.localStorage.getItem(STORAGE_KEY);
+      best = res ? parseInt(res, 10) || 0 : 0;
+    }catch(e){
+      best = 0;
+    }
+    els.bestDisplay.textContent = best;
+  }
+
+  async function saveBestIfNeeded(finalScoreVal){
+    let isNew = false;
+    if(finalScoreVal > best){
+      best = finalScoreVal;
+      isNew = true;
+      try{
+        window.localStorage.setItem(STORAGE_KEY, String(best));
+      }catch(e){ /* saving failed silently, gameplay unaffected */ }
+    }
+    els.bestDisplay.textContent = best;
+    return isNew;
+  }
+
+  function showScreen(name){
+    [els.start, els.play, els.end].forEach(s => s.classList.remove('active'));
+    els[name].classList.add('active');
+  }
+
+  function shuffleArray(arr){
+    for(let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function genEquation(){
+    // difficulty scales with elapsed question count, NOT streak
+    // (streak resets on a miss; the ramp should not reset with it)
+    const baseLevel = Math.min(Math.floor(questionIndex / 4), 9); // 0..9, rises every 4 questions
+
+    // occasional deliberate "challenge" question: clearly telegraphed (tag + color),
+    // not a silent difficulty swing — this is the opposite of the volatility we removed.
+    // kept rare on purpose so it still reads as a "moment", not a difficulty swing.
+    const isWildcard = questionIndex >= 3 && Math.random() < 0.08;
+    const level = isWildcard ? Math.min(baseLevel + 3, 9) : baseLevel;
+
+    // × and ÷ are introduced gradually and capped, instead of a hard on/off switch —
+    // this removes the jarring difficulty spike that caused perceived volatility
+    const advancedProb = level === 0 ? 0 : Math.min(0.15 + (level - 1) * 0.07, 0.55);
+    let op;
+    if(Math.random() < advancedProb){
+      op = Math.random() < 0.5 ? '×' : '÷';
+    } else {
+      op = Math.random() < 0.5 ? '+' : '-';
+    }
+
+    let a, b, real;
+    if(op === '×'){
+      // fixed-width band that slides upward with level (band width stays 4, so
+      // effort-per-question stays consistent instead of swinging within a level)
+      const minM = 2 + level;
+      const bandM = 4;
+      a = minM + Math.floor(Math.random() * bandM);
+      b = minM + Math.floor(Math.random() * bandM);
+      real = a * b;
+    } else if(op === '÷'){
+      // built backwards from a clean divisor × quotient so it always divides evenly
+      const minD = 2 + Math.floor(level / 2);
+      const bandD = 4;
+      const divisor = minD + Math.floor(Math.random() * bandD);
+      const quotient = minD + Math.floor(Math.random() * bandD);
+      a = divisor * quotient;
+      b = divisor;
+      real = quotient;
+    } else {
+      const minA = 2 + level * 3;
+      const bandA = 6;
+      a = minA + Math.floor(Math.random() * bandA);
+      b = minA + Math.floor(Math.random() * bandA);
+      if(op === '-' && a < b){ [a, b] = [b, a]; } // avoid negative results
+      real = (op === '+') ? a + b : a - b;
+    }
+
+    const displayText = `${a} ${op} ${b} =`;
+    const correctValue = real;
+
+    const choices = buildChoices(op, a, b, real, correctValue);
+
+    return { display: displayText, correct: correctValue, choices, isWildcard };
+  }
+
+  function buildChoices(op, a, b, real, correctValue){
+    const candidates = new Set();
+    const add = (v) => { if(v !== correctValue && v > 0) candidates.add(v); };
+
+    if(op === '×'){
+      // realistic multiplication slip-ups, NOT just "±small number"
+      // these deliberately vary the last digit so it can't be read off directly
+      add(a * (b - 1));
+      add(a * (b + 1));
+      add((a - 1) * b);
+      add((a + 1) * b);
+      add(real + 10);
+      add(real - 10);
+      if(real >= 10 && real < 100){ // digit-transposition slip (e.g. 56 -> 65)
+        const tens = Math.floor(real / 10), units = real % 10;
+        if(tens !== units) add(units * 10 + tens);
+      }
+    } else if(op === '÷'){
+      // near-miss quotients, plus the classic mistake of answering with the divisor
+      add(real + 1); add(real - 1); add(real + 2); add(real - 2);
+      add(b);
+    } else if(op === '+'){
+      add(real + 10); add(real - 10);
+      add(a + b + 1); add(a + b - 1);
+    } else {
+      add(real + 10); add(real - 10);
+      add(a - b - 1); add(a - b + 1);
+    }
+
+    // fallback jitter if the slip-up set didn't yield enough distinct values
+    while(candidates.size < 2){
+      const delta = Math.floor(Math.random()*5) + 1;
+      add(correctValue + (Math.random() < 0.5 ? delta : -delta));
+    }
+
+    const pool = shuffleArray(Array.from(candidates));
+    const distractors = pool.slice(0, 2);
+
+    return shuffleArray([correctValue, ...distractors]);
+  }
+
+  function nextEquation(){
+    let eq;
+    let attempts = 0;
+    do{
+      eq = genEquation();
+      attempts++;
+    } while(recentQuestions.includes(eq.display) && attempts < 8);
+
+    recentQuestions.push(eq.display);
+    if(recentQuestions.length > 6){ recentQuestions.shift(); }
+
+    questionIndex++;
+    currentAnswer = eq.correct;
+    currentIsWildcard = eq.isWildcard;
+    els.eqCard.textContent = eq.display;
+    els.eqCard.className = 'eq-card' + (currentIsWildcard ? ' wildcard' : '');
+    els.challengeTag.classList.toggle('on', currentIsWildcard);
+
+    els.choicesRow.innerHTML = '';
+    eq.choices.forEach((val, idx) => {
+      const b = document.createElement('div');
+      b.className = 'choice-btn';
+      b.dataset.value = val;
+      b.innerHTML = `${val}<span class="k">${idx+1}</span>`;
+      b.onclick = () => judge(val, b);
+      els.choicesRow.appendChild(b);
+    });
+
+    accepting = true;
+    questionStartAt = performance.now();
+  }
+
+  function updateRing(){
+    const pct = Math.min(Math.max(timeLeft,0) / 45, 1); // ring visually caps at 45s worth of fill
+    els.timeRing.setAttribute('stroke-dashoffset', RING_CIRC * (1-pct));
+    els.timeText.textContent = Math.max(Math.ceil(timeLeft),0);
+    if(timeLeft <= 10){
+      els.timeRing.setAttribute('stroke', 'var(--red)');
+    } else {
+      els.timeRing.setAttribute('stroke', 'var(--blue)');
+    }
+  }
+
+  function judge(selectedValue, btnEl){
+    if(!accepting) return;
+    accepting = false;
+    const wasRight = (selectedValue === currentAnswer);
+    const reactionSec = (performance.now() - questionStartAt) / 1000;
+    totalJudged++;
+
+    // lock all buttons, show feedback
+    const allBtns = Array.from(els.choicesRow.children);
+    allBtns.forEach(b => b.onclick = null);
+    if(btnEl){
+      btnEl.classList.add(wasRight ? 'pick-correct' : 'pick-wrong');
+    }
+    if(!wasRight){
+      allBtns.forEach(b => {
+        if(parseInt(b.dataset.value, 10) === currentAnswer){
+          b.classList.add('reveal-correct');
+        }
+      });
+    }
+
+    if(wasRight){
+      streak++;
+      maxStreak = Math.max(maxStreak, streak);
+      correctCount++;
+      reactionTimes.push(reactionSec);
+      const gain = Math.round(100 * (1 + streak*0.12));
+      score += gain;
+      timeLeft = Math.min(timeLeft + 0.6, TIME_CAP);
+      els.eqCard.classList.add('flash-ok');
+      sfxCorrect(streak);
+
+      if(currentIsWildcard){
+        score += 200;
+        showBonusToast(null, 'CHALLENGE CLEAR +200');
+        sfxStreakBonus();
+      }
+
+      if(streak > 0 && streak % 5 === 0){
+        timeLeft = Math.min(timeLeft + 5, TIME_CAP);
+        score += 300;
+        showBonusToast(streak);
+        sfxStreakBonus();
+      }
+    } else {
+      streak = 0;
+      timeLeft = Math.max(timeLeft - 1.6, 0);
+      els.eqCard.classList.add('flash-ng');
+      sfxWrong();
+    }
+    els.scoreDisplay.textContent = score;
+    els.streakDisplay.textContent = '連鎖 ' + streak;
+    updateRing();
+    els.challengeTag.classList.remove('on');
+
+    els.eqCard.classList.add(wasRight ? 'leave-right' : 'leave-left');
+
+    setTimeout(() => {
+      if(timeLeft <= 0){ endGame(); return; }
+      nextEquation();
+    }, wasRight ? 140 : 420);
+  }
+
+  function showBonusToast(streakVal, customText){
+    els.bonusToast.textContent = customText || `${streakVal}連続！ +5秒 / +300`;
+    els.bonusToast.classList.remove('show');
+    // force reflow so the animation restarts if triggered again quickly
+    void els.bonusToast.offsetWidth;
+    els.bonusToast.classList.add('show');
+  }
+
+  function tick(){
+    timeLeft -= 0.1;
+    if(timeLeft <= 0){
+      timeLeft = 0;
+      updateRing();
+      clearInterval(timerId);
+      accepting = false;
+      sfxTimeUp();
+      endGame();
+      return;
+    }
+    updateRing();
+    const wholeSec = Math.ceil(timeLeft);
+    if(wholeSec <= 10 && wholeSec !== lastTickSecond){
+      lastTickSecond = wholeSec;
+      sfxTick();
+    }
+  }
+
+  async function startGame(){
+    ensureAudio();
+    score = 0; streak = 0; maxStreak = 0; timeLeft = 45;
+    reactionTimes = []; totalJudged = 0; correctCount = 0; lastTickSecond = null; questionIndex = 0; currentIsWildcard = false; recentQuestions = [];
+    els.challengeTag.classList.remove('on');
+    els.scoreDisplay.textContent = '0';
+    els.streakDisplay.textContent = '連鎖 0';
+    updateRing();
+    showScreen('play');
+    nextEquation();
+    timerId = setInterval(tick, 100);
+  }
+
+  function classifyJudgmentType(){
+    const accuracy = totalJudged > 0 ? correctCount / totalJudged : 0;
+    if(reactionTimes.length === 0){
+      return {
+        type: '静観型',
+        desc: 'まだ判断のリズムを掴む前に終わっています。まずは連鎖を1回つなげてみましょう。'
+      };
+    }
+    const avg = reactionTimes.reduce((a,b)=>a+b,0) / reactionTimes.length;
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+    // three axes, each normalized to 0..1, then blended into one continuous score.
+    // using a continuous composite (instead of fixed thresholds) means small run-to-run
+    // differences — one lucky/unlucky streak, a slightly faster or slower run — actually
+    // move the result, instead of everyone-skilled landing in the same bucket every time.
+    const speedScore  = clamp01(1 - (avg - 0.3) / (1.3 - 0.3));   // 0.3s=1.0 fastest, 1.3s=0 slowest
+    const accScore    = clamp01(accuracy);
+    const streakScore = clamp01(maxStreak / 20);                  // 20+ chain = maxed out
+
+    // streak carries real weight on purpose: it's the axis most affected by in-run luck
+    // (one miss on a challenge question, one lucky clean stretch), so it's what keeps a
+    // consistently-skilled player from landing on the exact same type every single run.
+    const composite = speedScore * 0.40 + accScore * 0.40 + streakScore * 0.20;
+
+    const tiers = [
+      { min: 0.90, type: '伝説型',     desc: '速さ・正確さ・連鎖の全てが高水準です。このゲームを極めつつあります。' },
+      { min: 0.78, type: '電光石火型', desc: '速さと正確さを両立させています。瞬間判断力がこのゲームの得意分野です。' },
+      { min: 0.65, type: '堅実俊敏型', desc: '速さと安定感のバランスが良いタイプです。連鎖をもっと伸ばせると上のタイプが見えてきます。' },
+      { min: 0.52, type: '標準型',     desc: '速度・正確さともに平均的です。連鎖を意識すると一段上のタイプに変わります。' },
+      { min: 0.40, type: '直感先行型', desc: '反応は速いものの、勢い任せで誤答や連鎖切れが出ています。正確さが伸びしろです。' },
+      { min: 0.25, type: '熟考型',     desc: 'じっくり見極めるタイプです。スピードを乗せられればさらに伸びます。' },
+      { min: 0,    type: '模索型',     desc: 'ルールを掴んでいる途中です。数をこなすほど一気に伸びるタイプです。' },
+    ];
+    const found = tiers.find(t => composite >= t.min);
+    return { type: found.type, desc: found.desc, avg, accuracy, composite };
+  }
+
+  async function endGame(){
+    clearInterval(timerId);
+    accepting = false;
+    els.finalScore.textContent = score;
+    const isNew = await saveBestIfNeeded(score);
+    els.finalBest.textContent = best;
+    els.newRecordTag.style.display = isNew ? 'inline-block' : 'none';
+
+    const diag = classifyJudgmentType();
+    document.getElementById('diagType').textContent = diag.type;
+    document.getElementById('diagDesc').textContent = diag.desc;
+    const avgMs = diag.avg ? Math.round(diag.avg * 1000) : null;
+    const accPct = totalJudged > 0 ? Math.round((correctCount/totalJudged)*100) : 0;
+    document.getElementById('diagStats').textContent =
+      (avgMs !== null ? `平均反応 ${avgMs}ms ／ ` : '') +
+      `正答率 ${accPct}% ／ 最大連鎖 ${maxStreak}`;
+
+    showScreen('end');
+  }
+
+  function resetToStart(){
+    showScreen('start');
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if(!accepting) return;
+    const idx = parseInt(e.key, 10) - 1;
+    const btns = Array.from(els.choicesRow.children);
+    if(idx >= 0 && idx < btns.length){
+      const b = btns[idx];
+      judge(parseInt(b.dataset.value, 10), b);
+    }
+  });
+
+  loadBest();
+</script>
+</body>
+</html>
